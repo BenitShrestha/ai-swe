@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional
 
 class File(BaseModel):
     path: str = Field(description="The path to the file to be created or modified")
@@ -13,8 +14,13 @@ class Plan(BaseModel):
 
 class ImplementationTask(BaseModel):
     filepath: str = Field(description="The path to the file to be modified")
-    task_description: str = Field(description="A detailed description of the task to be performed on the file, e.g. 'add user authentication', 'implement data processing logic', etc.")
+    task_description: str = Field(description="A concise description of what needs to be implemented")
 
 class TaskPlan(BaseModel):
-    implementation_steps: list[ImplementationTask] = Field(description="A list of steps to be taken to implement the task")
+    implementation_steps: list[ImplementationTask] = Field(description="List of implementation tasks")
     model_config = ConfigDict(extra="allow") # Allows extra objects in schema, without breaking validation rules
+
+class CoderState(BaseModel):
+    task_plan: TaskPlan = Field(description="The plan for the task to be implemented")
+    current_step_idx: int = Field(0, description="The index of the current step in the implementation steps")
+    current_file_content: Optional[str] = Field(None, description="The content of the file currently being edited or created")
