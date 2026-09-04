@@ -107,7 +107,7 @@ graph.set_entry_point("planner")
 agent = graph.compile()
 
 if __name__ == "__main__":
-    user_prompt = " Create a simple calculator web application."
+    user_prompt = "Create a simple calculator web application."
 
     result = agent.invoke({"user_prompt": user_prompt})
 
