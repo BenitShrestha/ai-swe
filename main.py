@@ -1,16 +1,31 @@
-# This is a sample Python script.
+import argparse
+import sys
+import traceback
 
-# Press Ctrl+F5 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from agent.graph import agent
+
+def main():
+    parser = argparse.ArgumentParser(description="Run engineering project planner")
+    parser.add_argument("--recursion-limit", "-r", type=int, default=200,
+                        help="Recursion limit for processing (default: 200)")
+
+    args = parser.parse_args()
+
+    try:
+        user_prompt = input("Enter your project prompt: ")
+        result = agent.invoke(
+            {"user_prompt": user_prompt},
+            {"recursion_limit": args.recursion_limit}
+        )
+        print("Final State:", result)
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        sys.exit(0)
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi from, {name}')  # Press F9 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('AI SWE')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+if __name__ == "__main__":
+    main()
