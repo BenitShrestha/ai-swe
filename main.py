@@ -13,6 +13,7 @@ def main():
 
     try:
         user_prompt = input("Enter your project prompt: ") # Create a simple calculator web application.
+        print("Prompt received: ", user_prompt)
         result = agent.invoke(
             {"user_prompt": user_prompt},
             {"recursion_limit": args.recursion_limit}
