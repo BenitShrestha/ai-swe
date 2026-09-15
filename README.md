@@ -1,12 +1,18 @@
 # AI-SWE
 
-AI-SWE is a command-line AI software engineering agent that turns a natural-language project request into an implementation plan and then generates the project files. It uses a LangGraph workflow with three stages:
+AI-SWE is an AI software engineering agent that turns a natural-language project request into an implementation plan and then generates the project files. It uses a LangGraph workflow with three stages:
 
-1. **Planner** — converts the user request into a structured project plan.
-2. **Architect** — converts the plan into ordered, file-level implementation tasks.
-3. **Coder** — executes those tasks using file-system tools and writes the generated project.
+1. **Planner**: Converts the user request into a structured project plan.
+2. **Architect**: Converts the plan into ordered, file-level implementation tasks.
+3. **Coder**: Executes those tasks using file-system tools and writes the generated project.
 
 The LLM backend is **Groq** using `openai/gpt-oss-120b`.
+
+## Live Demo
+
+A hosted version is available at: **https://web-production-c56d49.up.railway.app/**
+
+No login or API key is required. Requests are rate-limited (5 generations/hour per IP) to protect the shared Groq quota.
 
 ## Architecture
 
@@ -31,34 +37,48 @@ User Prompt
 
 The workflow is implemented as a LangGraph `StateGraph`. The coder is a tool-using agent with access to:
 
-- `read_file` — read a generated-project file
-- `write_file` — create or overwrite a generated-project file
-- `list_files` — inspect generated-project contents
-- `get_current_directory` — return the generated project root
+- `read_file`: Read a generated-project file
+- `write_file`: Create or overwrite a generated-project file
+- `list_files`: Inspect generated-project contents
+- `get_current_directory`: Return the generated project root
 
-File operations are restricted to the `generated_project/` directory.
+File operations are restricted to the generated project's root directory.
+
+This agent can be run two ways:
+
+- **CLI**: `main.py`, unchanged, writes to a single local `generated_project/` folder.
+- **Web app**: `backend/` (FastAPI) + `frontend/` (static HTML/JS), where each request runs in its own isolated `jobs/<job_id>/generated_project/` folder and produces a downloadable zip.
 
 ## Project Structure
 
 ```text
 ai-swe/
 ├── agent/
-│   ├── graph.py       # Planner, Architect, Coder agents and LangGraph workflow
-│   ├── prompts.py     # Prompts used by the three agent stages
-│   ├── states.py      # Pydantic models for plans, tasks and coder state
-│   └── tools.py       # Sandboxed file-system tools
+│   ├── graph.py         # Planner, Architect, Coder agents and LangGraph workflow
+│   ├── prompts.py       # Prompts used by the three agent stages
+│   ├── states.py        # Pydantic models for plans, tasks and coder state
+│   └── tools.py         # Sandboxed file-system tools
+├── backend/
+│   ├── main.py           # FastAPI app: mounts frontend, includes routes
+│   ├── routes.py         # /generate, /status/{id}, /download/{id}
+│   └── limiter.py        # Shared rate-limiter instance
+├── frontend/
+│   ├── index.html         # Prompt box, status, download link
+│   └── app.js              # Calls backend, polls job status
 ├── src/
 │   └── ai_swe/
 │       └── __init__.py
-├── main.py            # CLI entry point for running the agent
-├── pyproject.toml     # Project metadata and dependencies
-├── uv.lock            # Locked dependency versions
-├── .python-version    # Python version used by the project
-├── .env               # Local environment variables; not committed
-└── generated_project/ # Created/generated application files
+├── main.py               # CLI entry point for running the agent locally
+├── Procfile                # Railway start command
+├── pyproject.toml          # Project metadata and dependencies
+├── uv.lock                 # Locked dependency versions
+├── .python-version         # Python version used by the project
+├── .env                     # Local environment variables; not committed
+├── generated_project/        # Created by the CLI run
+└── jobs/                      # Created by the web app; per-request generated projects + zips
 ```
 
-`generated_project/` is intentionally ignored by Git because it contains generated output.
+`generated_project/` and `jobs/` are intentionally ignored by Git because they contain generated output.
 
 ## Requirements
 
@@ -93,7 +113,7 @@ Do not commit `.env` or expose the API key.
 
 ## Run
 
-Start the agent with:
+### CLI
 
 ```bash
 uv run python main.py
@@ -111,19 +131,23 @@ The agent will plan the project, create implementation tasks, and execute them i
 generated_project/
 ```
 
-### Recursion Limit
-
-The default LangGraph recursion limit is `200`. It can be changed with:
+### Web app (local)
 
 ```bash
-uv run python main.py --recursion-limit 300
+uv run uvicorn backend.main:app --reload
 ```
 
-or:
+Open `http://localhost:8000`, enter a prompt, and download the generated project as a zip once it's ready.
 
-```bash
-uv run python main.py -r 300
+## Deployment (Railway)
+
+The app is deployed on Railway using its default Nixpacks builder (no Dockerfile) plus a `Procfile`:
+
+```text
+web: uv run uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 ```
+
+Railway installs dependencies from `pyproject.toml`/`uv.lock` automatically and injects `$PORT`. Set `GROQ_API_KEY` in the Railway dashboard's environment variables.
 
 ## How the Workflow Works
 
@@ -162,42 +186,16 @@ If Groq returns a rate-limit error, the coder retries with an exponential backof
 
 ## Generated Project Safety
 
-All generated-project file paths pass through `safe_path_for_project()` before reading or writing. Paths that resolve outside `generated_project/` are rejected.
+All generated-project file paths pass through `safe_path_for_project()` before reading or writing. Paths that resolve outside the current project root are rejected.
 
-This limits the coder's file operations to the generated application directory.
-
-## Development Notes
-
-The main executable implementation is currently `main.py`, which imports the compiled graph from `agent.graph`.
-
-The package entry declared in `pyproject.toml` (`ai-swe = "ai_swe:main"`) currently points to `src/ai_swe/__init__.py`, whose `main()` is only a placeholder. Therefore, use:
+This limits the coder's file operations to the generated application directory. In the web app, each request gets its own isolated project root via `set_project_root()`, so concurrent requests don't collide.
 
 ```bash
 uv run python main.py
 ```
 
-to run the actual AI-SWE agent.
-
-## Troubleshooting
-
-### `GROQ_API_KEY` errors
-
-Check that `.env` exists in the repository root and contains a valid key:
-
-```env
-GROQ_API_KEY=your_groq_api_key
-```
-
 ### Rate-limit errors
 
-The coder automatically retries Groq rate-limit errors with exponential backoff. If limits persist, wait and retry the run or use an account/API configuration with sufficient quota.
+**Groq rate limits:** The coder automatically retries with exponential backoff. If limits persist, wait and retry or use an account/API configuration with sufficient quota.
 
-### Generated files are missing
-
-Check:
-
-```text
-generated_project/
-```
-
-The directory is created when the project-generation tools write files. It is ignored by Git and is therefore not included when another user clones the repository.
+**App rate limit:** The web app caps requests at 5 generations/hour per IP. A `429` response means you'll need to wait before generating again.
