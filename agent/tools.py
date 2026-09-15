@@ -6,6 +6,11 @@ from langchain_core.tools import tool
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent / "generated_project"
 
+def set_project_root(path: pathlib.Path) -> None:
+    """Override PROJECT_ROOT at runtime (used by backend for per-job isolation)."""
+    global PROJECT_ROOT
+    PROJECT_ROOT = path
+
 def safe_path_for_project(path: str) -> pathlib.Path:
     p = (PROJECT_ROOT / path).resolve()
     if PROJECT_ROOT.resolve() not in p.parents and PROJECT_ROOT.resolve() != p.parent and PROJECT_ROOT.resolve() != p:
