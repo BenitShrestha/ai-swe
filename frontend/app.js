@@ -3,6 +3,7 @@ const btn = document.getElementById("generate");
 const promptEl = document.getElementById("prompt");
 const statusEl = document.getElementById("status");
 const downloadEl = document.getElementById("download");
+const logEl = document.getElementById("log");
 
 let pollTimer = null;
 
@@ -42,6 +43,10 @@ function poll(jobId) {
     const res = await fetch(`/api/status/${jobId}`);
     const data = await res.json();
 
+    logEl.style.display = "block";
+    logEl.textContent = data.log.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+
     if (data.status === "done") {
       clearInterval(pollTimer);
       statusEl.textContent = "Done!";
@@ -54,5 +59,5 @@ function poll(jobId) {
       btn.disabled = false;
     }
     // else still "running" — keep polling
-  }, 3000);
+  }, 2000); // tightened from 3000 since there's more to show now
 }
